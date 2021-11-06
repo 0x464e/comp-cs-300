@@ -1,8 +1,8 @@
 // Datastructures.hh
 //
-// Student name:
-// Student email:
-// Student number:
+// Student name: Otto  
+ 
+ 
 
 #ifndef DATASTRUCTURES_HH
 #define DATASTRUCTURES_HH
@@ -14,19 +14,20 @@
 #include <limits>
 #include <functional>
 #include <exception>
+#include <iterator>
 
 // Types for IDs
 using TownID = std::string;
 using Name = std::string;
 
 // Return values for cases where required thing was not found
-TownID const NO_TOWNID = "----------";
+const TownID NO_TOWNID = "----------";
 
 // Return value for cases where integer values were not found
-int const NO_VALUE = std::numeric_limits<int>::min();
+constexpr int NO_VALUE = std::numeric_limits<int>::min();
 
 // Return value for cases where name values were not found
-Name const NO_NAME = "!!NO_NAME!!";
+const Name NO_NAME = "!!NO_NAME!!";
 
 // Type for a coordinate (x, y)
 struct Coord
@@ -37,16 +38,16 @@ struct Coord
 
 // Example: Defining == and hash function for Coord so that it can be used
 // as key for std::unordered_map/set, if needed
-inline bool operator==(Coord c1, Coord c2) { return c1.x == c2.x && c1.y == c2.y; }
-inline bool operator!=(Coord c1, Coord c2) { return !(c1==c2); } // Not strictly necessary
+inline bool operator==(const Coord c1, const Coord c2) { return c1.x == c2.x && c1.y == c2.y; }
+inline bool operator!=(const Coord c1, const Coord c2) { return !(c1 == c2); } // Not strictly necessary
 
 struct CoordHash
 {
     std::size_t operator()(Coord xy) const
     {
-        auto hasher = std::hash<int>();
-        auto xhash = hasher(xy.x);
-        auto yhash = hasher(xy.y);
+        constexpr auto hasher = std::hash<int>();
+        const auto xhash = hasher(xy.x);
+        const auto yhash = hasher(xy.y);
         // Combine hash values (magic!)
         return xhash ^ (yhash + 0x9e3779b9 + (xhash << 6) + (xhash >> 2));
     }
@@ -54,15 +55,17 @@ struct CoordHash
 
 // Example: Defining < for Coord so that it can be used
 // as key for std::map/set
-inline bool operator<(Coord c1, Coord c2)
+inline bool operator<(const Coord c1, const Coord c2)
 {
-    if (c1.y < c2.y) { return true; }
-    else if (c2.y < c1.y) { return false; }
-    else { return c1.x < c2.x; }
+    if (c1.y < c2.y)    
+        return true;
+    if (c2.y < c1.y) 
+        return false;
+    return c1.x < c2.x;
 }
 
 // Return value for cases where coordinates were not found
-Coord const NO_COORD = {NO_VALUE, NO_VALUE};
+Coord const NO_COORD = { NO_VALUE, NO_VALUE };
 
 // Type for a distance (in metres)
 using Distance = int;
@@ -75,10 +78,10 @@ Distance const NO_DISTANCE = NO_VALUE;
 class NotImplemented : public std::exception
 {
 public:
-    NotImplemented() : msg_{} {}
-    explicit NotImplemented(std::string const& msg) : msg_{msg + " not implemented"} {}
+    NotImplemented() = default;
+    explicit NotImplemented(std::string const& msg) : msg_{ msg + " not implemented" } {}
 
-    virtual const char* what() const noexcept override
+    [[nodiscard]] const char* what() const noexcept override
     {
         return msg_.c_str();
     }

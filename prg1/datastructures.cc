@@ -1,8 +1,8 @@
 // Datastructures.cc
 //
-// Student name:
-// Student email:
-// Student number:
+// Student name: Otto  
+ 
+ 
 
 #include "datastructures.hh"
 
@@ -15,12 +15,12 @@ std::minstd_rand rand_engine; // Reasonably quick pseudo-random generator
 template <typename Type>
 Type random_in_range(Type start, Type end)
 {
-    auto range = end-start;
+    auto range = end - start;
     ++range;
 
-    auto num = std::uniform_int_distribution<unsigned long int>(0, range-1)(rand_engine);
+    auto num = std::uniform_int_distribution<unsigned long int>(0, range - 1)(rand_engine);
 
-    return static_cast<Type>(start+num);
+    return static_cast<Type>(start + num);
 }
 
 // Modify the code below to implement the functionality of the class.
@@ -50,7 +50,7 @@ void Datastructures::clear_all()
     throw NotImplemented("clear_all()");
 }
 
-bool Datastructures::add_town(TownID /*id*/, const Name &/*name*/, Coord /*coord*/, int /*tax*/)
+bool Datastructures::add_town(TownID /*id*/, const Name&/*name*/, Coord /*coord*/, int /*tax*/)
 {
     // Replace the line below with your implementation
     // Also uncomment parameters ( /* param */ -> param )
@@ -84,14 +84,14 @@ std::vector<TownID> Datastructures::all_towns()
     throw NotImplemented("all_towns()");
 }
 
-std::vector<TownID> Datastructures::find_towns(const Name &/*name*/)
+std::vector<TownID> Datastructures::find_towns(const Name&/*name*/)
 {
     // Replace the line below with your implementation
     // Also uncomment parameters ( /* param */ -> param )
     throw NotImplemented("find_towns()");
 }
 
-bool Datastructures::change_town_name(TownID /*id*/, const Name &/*newname*/)
+bool Datastructures::change_town_name(TownID /*id*/, const Name&/*newname*/)
 {
     // Replace the line below with your implementation
     // Also uncomment parameters ( /* param */ -> param )
