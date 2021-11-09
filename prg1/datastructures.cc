@@ -29,97 +29,132 @@ Type random_in_range(Type start, Type end)
 // warning about unused parameters on operations you haven't yet implemented.)
 
 Datastructures::Datastructures()
-{
-    // Write any initialization you need here
-}
+= default;
 
 Datastructures::~Datastructures()
-{
-    // Write any cleanup you need here
-}
+= default;
 
 unsigned int Datastructures::town_count()
 {
-    // Replace the line below with your implementation
-    throw NotImplemented("town_count()");
+    return static_cast<unsigned int>(database_.size());
 }
 
 void Datastructures::clear_all()
 {
-    // Replace the line below with your implementation
-    throw NotImplemented("clear_all()");
+    database_.clear();
 }
 
-bool Datastructures::add_town(TownID /*id*/, const Name&/*name*/, Coord /*coord*/, int /*tax*/)
+bool Datastructures::add_town(TownID id, const Name & name, Coord coord, int tax)
 {
-    // Replace the line below with your implementation
-    // Also uncomment parameters ( /* param */ -> param )
-    throw NotImplemented("add_town()");
+    //if town by this id already exists, don't do anything
+    if (database_.find(id) != database_.end())
+        return false;
+
+    database_.insert({ id, { id, name, coord, tax } });
+    return true;
 }
 
-Name Datastructures::get_town_name(TownID /*id*/)
+Name Datastructures::get_town_name(TownID id)
 {
-    // Replace the line below with your implementation
-    // Also uncomment parameters ( /* param */ -> param )
-    throw NotImplemented("get_town_name()");
+    //if town by this id doesn't exist
+    if (database_.find(id) == database_.end())
+        return NO_NAME;
+
+    return database_.at(id).name;
 }
 
-Coord Datastructures::get_town_coordinates(TownID /*id*/)
+Coord Datastructures::get_town_coordinates(TownID id)
 {
-    // Replace the line below with your implementation
-    // Also uncomment parameters ( /* param */ -> param )
-    throw NotImplemented("get_town_coordinates()");
+    //if town by this id doesn't exist
+    if (database_.find(id) == database_.end())
+        return NO_COORD;
+
+    return database_.at(id).coord;
 }
 
-int Datastructures::get_town_tax(TownID /*id*/)
+int Datastructures::get_town_tax(TownID id)
 {
-    // Replace the line below with your implementation
-    // Also uncomment parameters ( /* param */ -> param )
-    throw NotImplemented("get_town_tax()");
+    //if town by this id doesn't exist
+    if (database_.find(id) == database_.end())
+        return NO_VALUE;
+
+    return database_.at(id).tax;
 }
 
 std::vector<TownID> Datastructures::all_towns()
 {
-    // Replace the line below with your implementation
-    throw NotImplemented("all_towns()");
+    std::vector<TownID> all_towns{};
+    //reserve space for vector to avoid possible multiple reallocations inside the loop
+    all_towns.reserve(database_.size());
+    for (const auto& [id, town] : database_)
+        all_towns.push_back(id);
+
+    return all_towns;
 }
 
-std::vector<TownID> Datastructures::find_towns(const Name&/*name*/)
+std::vector<TownID> Datastructures::find_towns(const Name & name)
 {
-    // Replace the line below with your implementation
-    // Also uncomment parameters ( /* param */ -> param )
-    throw NotImplemented("find_towns()");
+    std::vector<TownID> matching_towns{};
+    // loop through each town in the database adding the matching
+    // towns to output vector
+    for (const auto& [id, town] : database_)
+        if (town.name == name)
+            matching_towns.push_back(id);
+    return matching_towns;
 }
 
-bool Datastructures::change_town_name(TownID /*id*/, const Name&/*newname*/)
+bool Datastructures::change_town_name(TownID id, const Name & newname)
 {
-    // Replace the line below with your implementation
-    // Also uncomment parameters ( /* param */ -> param )
-    throw NotImplemented("change_town_name()");
+    //if town by this id doesn't exist
+    if (database_.find(id) == database_.end())
+        return false;
+
+    database_.at(id).name = newname;
+    return true;
 }
 
 std::vector<TownID> Datastructures::towns_alphabetically()
 {
-    // Replace the line below with your implementation
-    throw NotImplemented("towns_alphabetically()");
+    std::vector<TownID> towns{};
+    std::transform(database_.begin(), database_.end(), std::back_inserter(towns), [](const auto& town) { return town.first; });
+    std::sort(towns.begin(), towns.end());
+    return towns;
 }
 
 std::vector<TownID> Datastructures::towns_distance_increasing()
 {
-    // Replace the line below with your implementation
-    throw NotImplemented("towns_distance_increasing()");
+    std::vector<TownID> towns{};
+    //TODO: possibly come up with a more efficient implementation
+    std::transform(database_.begin(), database_.end(), std::back_inserter(towns), [](const auto& town) { return town.first; });
+    std::sort(towns.begin(), towns.end(), [this](const auto& town1, const auto& town2)
+    {
+        return get_distance_from_origin(database_.at(town1)) < get_distance_from_origin(database_.at(town2));
+    });
+    return towns;
 }
 
 TownID Datastructures::min_distance()
 {
-    // Replace the line below with your implementation
-    throw NotImplemented("min_distance()");
+    //if there are no towns in the database
+    if (database_.empty())
+        return NO_TOWNID;
+
+    return std::min_element(database_.begin(), database_.end(), [this](const auto& town1, const auto& town2)
+    {
+        return get_distance_from_origin(town1.second) < get_distance_from_origin(town2.second);
+    })->first;
 }
 
 TownID Datastructures::max_distance()
 {
-    // Replace the line below with your implementation
-    throw NotImplemented("max_distance()");
+    //if there are no towns in the database
+    if (database_.empty())
+        return NO_TOWNID;
+
+    return std::max_element(database_.begin(), database_.end(), [this](const auto& town1, const auto& town2)
+    {
+        return get_distance_from_origin(town1.second) < get_distance_from_origin(town2.second);
+    })->first;
 }
 
 bool Datastructures::add_vassalship(TownID /*vassalid*/, TownID /*masterid*/)
@@ -169,4 +204,14 @@ int Datastructures::total_net_tax(TownID /*id*/)
     // Replace the line below with your implementation
     // Also uncomment parameters ( /* param */ -> param )
     throw NotImplemented("total_net_tax()");
+}
+
+int Datastructures::get_distance_from_origin(const Town& town) const
+{
+    return static_cast<int>(sqrt(pow(town.coord.x, 2) + pow(town.coord.y, 2)));
+}
+
+int Datastructures::get_distance_between_towns(const Town& town1, const Town& town2) const
+{
+    return static_cast<int>(sqrt(pow(town1.coord.x - town2.coord.x, 2) + pow(town1.coord.y - town2.coord.y, 2)));
 }

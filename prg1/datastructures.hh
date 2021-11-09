@@ -65,13 +65,13 @@ inline bool operator<(const Coord c1, const Coord c2)
 }
 
 // Return value for cases where coordinates were not found
-Coord const NO_COORD = { NO_VALUE, NO_VALUE };
+constexpr Coord NO_COORD = { NO_VALUE, NO_VALUE };
 
 // Type for a distance (in metres)
 using Distance = int;
 
 // Return value for cases where Distance is unknown
-Distance const NO_DISTANCE = NO_VALUE;
+constexpr Distance NO_DISTANCE = NO_VALUE;
 
 // This exception class is there just so that the user interface can notify
 // about operations which are not (yet) implemented
@@ -88,6 +88,18 @@ public:
 private:
     std::string msg_;
 };
+
+// a struct to represnt a town and its data
+struct Town
+{
+    TownID id{};
+    Name name{};
+    Coord coord{};
+    int tax;
+};
+
+//typedef for the main database that holds all the data about towns
+using Database = std::unordered_map<TownID, Town>;
 
 
 // This is the class you are supposed to implement
@@ -181,8 +193,10 @@ public:
     int total_net_tax(TownID id);
 
 private:
-    // Add stuff needed for your class implementation here
-
+    // database to hold all information about towns
+    Database database_{};
+    [[nodiscard]] int get_distance_from_origin(const Town& town) const;
+    [[nodiscard]] int get_distance_between_towns(const Town& town1, const Town& town2) const;
 };
 
 #endif // DATASTRUCTURES_HH
