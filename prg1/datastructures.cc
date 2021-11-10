@@ -23,11 +23,6 @@ Type random_in_range(Type start, Type end)
     return static_cast<Type>(start + num);
 }
 
-// Modify the code below to implement the functionality of the class.
-// Also remove comments from the parameter names when you implement
-// an operation (Commenting out parameter name prevents compiler from
-// warning about unused parameters on operations you haven't yet implemented.)
-
 Datastructures::Datastructures()
 = default;
 
@@ -44,41 +39,42 @@ void Datastructures::clear_all()
     database_.clear();
 }
 
-bool Datastructures::add_town(TownID id, const Name & name, Coord coord, int tax)
+bool Datastructures::add_town(TownID id, const Name& name, Coord coord, int tax)
 {
-    //if town by this id already exists, don't do anything
-    if (database_.find(id) != database_.end())
-        return false;
-
-    database_.insert({ id, { id, name, coord, tax } });
-    return true;
+    //insert() returns a boolean value indicating whether or not the insertion was successful
+    //we can just simply return that value
+    return database_.insert({ id, { id, name, coord, tax } }).second;
 }
 
 Name Datastructures::get_town_name(TownID id)
 {
+    const auto town = database_.find(id);
     //if town by this id doesn't exist
-    if (database_.find(id) == database_.end())
+    if (town == database_.end())
         return NO_NAME;
 
-    return database_.at(id).name;
+    return town->second.name;
 }
 
 Coord Datastructures::get_town_coordinates(TownID id)
 {
+    const auto town = database_.find(id);
     //if town by this id doesn't exist
-    if (database_.find(id) == database_.end())
+    if (town == database_.end())
         return NO_COORD;
 
-    return database_.at(id).coord;
+    return town->second.coord;
 }
 
 int Datastructures::get_town_tax(TownID id)
 {
+    const auto town = database_.find(id);
+
     //if town by this id doesn't exist
-    if (database_.find(id) == database_.end())
+    if (town == database_.end())
         return NO_VALUE;
 
-    return database_.at(id).tax;
+    return town->second.tax;
 }
 
 std::vector<TownID> Datastructures::all_towns()
@@ -105,11 +101,12 @@ std::vector<TownID> Datastructures::find_towns(const Name & name)
 
 bool Datastructures::change_town_name(TownID id, const Name & newname)
 {
+    const auto town = database_.find(id);
     //if town by this id doesn't exist
-    if (database_.find(id) == database_.end())
+    if (town == database_.end())
         return false;
 
-    database_.at(id).name = newname;
+    town->second.name = newname;
     return true;
 }
 
