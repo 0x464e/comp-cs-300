@@ -95,7 +95,9 @@ struct Town
     TownID id{};
     Name name{};
     Coord coord{};
-    int tax;
+    int tax{};
+    TownID master{};
+    std::vector<TownID> vassals{};
 };
 
 //typedef for the main database that holds all the data about towns
@@ -195,8 +197,13 @@ public:
 private:
     // database to hold all information about towns
     Database database_{};
-    [[nodiscard]] int get_distance_from_origin(const Town& town) const;
-    [[nodiscard]] int get_distance_between_towns(const Town& town1, const Town& town2) const;
+
+    // helper function to calculate distance between a town and a coordinate
+    // coordinate defaults to (0,0)
+    [[nodiscard]] unsigned get_distance_from_coord(const Town& town, const Coord& coord = { 0, 0 }) const;
+
+    // helper function to transfer a list of vassals to a new master town
+    void transfer_vassals(const std::vector<TownID>& vassals, const TownID& current_master, Town& new_master);
 };
 
 #endif // DATASTRUCTURES_HH
