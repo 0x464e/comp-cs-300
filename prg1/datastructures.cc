@@ -80,26 +80,28 @@ int Datastructures::get_town_tax(TownID id)
 std::vector<TownID> Datastructures::all_towns()
 {
     std::vector<TownID> all_towns{};
+
     //reserve space for vector to avoid possible multiple reallocations inside the loop
     all_towns.reserve(database_.size());
-    for (const auto& [id, town] : database_)
-        all_towns.push_back(id);
 
+    //transform to a vector of town ids by only taking the key of each database element
+    std::transform(database_.begin(), database_.end(), std::back_inserter(all_towns), [](const auto& town) { return town.first; });
     return all_towns;
 }
 
-std::vector<TownID> Datastructures::find_towns(const Name & name)
+std::vector<TownID> Datastructures::find_towns(const Name& name)
 {
     std::vector<TownID> matching_towns{};
-    // loop through each town in the database adding the matching
-    // towns to output vector
+
+    //loop through each town in the database adding the matching
+    //towns to output vector
     for (const auto& [id, town] : database_)
         if (town.name == name)
             matching_towns.push_back(id);
     return matching_towns;
 }
 
-bool Datastructures::change_town_name(TownID id, const Name & newname)
+bool Datastructures::change_town_name(TownID id, const Name& newname)
 {
     const auto town = database_.find(id);
     //if town by this id doesn't exist
@@ -113,21 +115,37 @@ bool Datastructures::change_town_name(TownID id, const Name & newname)
 std::vector<TownID> Datastructures::towns_alphabetically()
 {
     std::vector<TownID> towns{};
+
+    //transform to a vector of town ids by only taking the key of each database element
     std::transform(database_.begin(), database_.end(), std::back_inserter(towns), [](const auto& town) { return town.first; });
+
+    //sort using default string comparison
     std::sort(towns.begin(), towns.end());
     return towns;
 }
 
 std::vector<TownID> Datastructures::towns_distance_increasing()
 {
-    std::vector<TownID> towns{};
-    //TODO: possibly come up with a more efficient implementation
-    std::transform(database_.begin(), database_.end(), std::back_inserter(towns), [](const auto& town) { return town.first; });
+    //if there are no towns, we don't need to do anything
+    if (database_.empty())
+        return {};
+
+    std::vector<Town*> towns{};
+
+    //transform unordered_map<string, Town> to a vector of Town pointers
+    std::transform(database_.begin(), database_.end(), std::back_inserter(towns), [](auto& town) { return &town.second; });
+
+    //sort using a custom comparator lambda
     std::sort(towns.begin(), towns.end(), [this](const auto& town1, const auto& town2)
     {
-        return get_distance_from_coord(database_.at(town1)) < get_distance_from_coord(database_.at(town2));
+        return get_distance_from_coord(town1) < get_distance_from_coord(town2);
     });
-    return towns;
+    
+    std::vector<TownID> town_ids{};
+
+    //transform sorted vector of town pointers to a vector of their ids
+    std::transform(towns.begin(), towns.end(), std::back_inserter(town_ids), [](const auto& town) { return town->id; });
+    return town_ids;
 }
 
 TownID Datastructures::min_distance()
@@ -136,9 +154,11 @@ TownID Datastructures::min_distance()
     if (database_.empty())
         return NO_TOWNID;
 
+    //finds the element with a minimum distance from (0,0) using a custom comparator lambda
+    //returns the key of the element (the town's id)
     return std::min_element(database_.begin(), database_.end(), [this](const auto& town1, const auto& town2)
     {
-        return get_distance_from_coord(town1.second) < get_distance_from_coord(town2.second);
+        return get_distance_from_coord(&town1.second) < get_distance_from_coord(&town2.second);
     })->first;
 }
 
@@ -148,40 +168,48 @@ TownID Datastructures::max_distance()
     if (database_.empty())
         return NO_TOWNID;
 
+    //finds the element with a maximum distance from (0,0) using a custom comparator lambda
+    //returns the key of the element (the town's id)
     return std::max_element(database_.begin(), database_.end(), [this](const auto& town1, const auto& town2)
     {
-        return get_distance_from_coord(town1.second) < get_distance_from_coord(town2.second);
+        return get_distance_from_coord(&town1.second) < get_distance_from_coord(&town2.second);
     })->first;
 }
 
 bool Datastructures::add_vassalship(TownID vassalid, TownID masterid)
 {
-    //if town doesnt exist
+    //if vassal town doesnt exist
     const auto vassal = database_.find(vassalid);
     if (vassal == database_.end())
         return false;
 
     //if the vassal-to-be already has a master
-    if (!vassal->second.master.empty())
+    if (vassal->second.master)
         return false;
 
-    //if town doesnt exist
+    //if master town doesnt exist
     const auto master = database_.find(masterid);
     if (master == database_.end())
         return false;
 
-    master->second.vassals.push_back(vassal->first);
-    vassal->second.master = masterid;
+    master->second.vassals.push_back(&vassal->second);
+    vassal->second.master = &master->second;
     return true;
 }
 
 std::vector<TownID> Datastructures::get_town_vassals(TownID id)
 {
+    //if town doesnt exist
     const auto town = database_.find(id);
     if (town == database_.end())
         return { NO_TOWNID };
 
-    return town->second.vassals;
+    std::vector<TownID> vassal_ids{};
+    const auto vassals = town->second.vassals;
+
+    //transform vector of town pointers (vassals) to vector or their ids
+    std::transform(vassals.begin(), vassals.end(), std::back_inserter(vassal_ids), [](const auto& vassal) { return vassal->id; });
+    return vassal_ids;
 }
 
 std::vector<TownID> Datastructures::taxer_path(TownID id)
@@ -194,21 +222,21 @@ std::vector<TownID> Datastructures::taxer_path(TownID id)
     //vector of taxers where this town itself is the first element
     std::vector taxers{ id };
 
-    //if there are no taxers
-    if (town->second.master.empty())
+    //temp variable to store deeper and deeper masters
+    auto deeper_master = town->second.master;
+
+    //if there are no masters
+    if (!deeper_master)
         return taxers;
 
     //find deeper and deeper masters
-    //always assume the find command finds the specified town
-    //because the master field will be cleared if the master town gets removed
-    auto deeper_master = database_.find(town->second.master);
     for(;;)
     {
-        taxers.push_back(deeper_master->first);
-        //stop the loop once there is no deeper master
-        if (deeper_master->second.master.empty())
+        taxers.push_back(deeper_master->id);
+        //return once there is no deeper master
+        if (!deeper_master->master)
             return taxers;
-        deeper_master = database_.find(deeper_master->second.master);
+        deeper_master = deeper_master->master;
     }
 }
 
@@ -225,26 +253,41 @@ bool Datastructures::remove_town(TownID id)
     {
         //if this town has a master, make each vassal's current master be
         //this town's master
-        if (const auto master = database_.find(town->second.master); master != database_.end())
-            transfer_vassals(vassals, id, master->second);
+        if (const auto master = town->second.master; master)
+            transfer_vassals(vassals, &town->second, master);
         //if this town didn't have a master, just clear each vassal's master
         else
             for (const auto& vassal : vassals)
-                database_.find(vassal)->second.master.clear();
+                vassal->master = nullptr;
     }
+
+    //finally remove this town from the database
+    database_.erase(id);
     return true;
 }
 
 std::vector<TownID> Datastructures::towns_nearest(Coord coord)
 {
-    std::vector<TownID> towns{};
-    //TODO: possibly come up with a more efficient implementation
-    std::transform(database_.begin(), database_.end(), std::back_inserter(towns), [](const auto& town) { return town.first; });
+    //if there are no towns, we don't need to do anything
+    if (database_.empty())
+        return {};
+
+    std::vector<Town*> towns{};
+
+    //transform unordered_map<string, Town> to a vector of Town pointers
+    std::transform(database_.begin(), database_.end(), std::back_inserter(towns), [](auto& town) { return &town.second; });
+
+    //sort the vector of town pointers
     std::sort(towns.begin(), towns.end(), [this, coord](const auto& town1, const auto& town2)
     {
-        return get_distance_from_coord(database_.find(town1)->second, coord) < get_distance_from_coord(database_.find(town2)->second, coord);
+        return get_distance_from_coord(town1, coord) < get_distance_from_coord(town2, coord);
     });
-    return towns;
+
+    std::vector<TownID> town_ids{};
+
+    //transform sorted vector of town pointers to a vector of their ids
+    std::transform(towns.begin(), towns.end(), std::back_inserter(town_ids), [](const auto& town) { return town->id; });
+    return town_ids;
 }
 
 std::vector<TownID> Datastructures::longest_vassal_path(TownID /*id*/)
@@ -261,23 +304,23 @@ int Datastructures::total_net_tax(TownID /*id*/)
     throw NotImplemented("total_net_tax()");
 }
 
-unsigned Datastructures::get_distance_from_coord(const Town& town, const Coord& coord) const
+unsigned Datastructures::get_distance_from_coord(const Town* town, const Coord& coord) const
 {
     //cast to uint to floor efficiently
-    return static_cast<unsigned>(sqrt(pow(coord.x - town.coord.x, 2) + pow(coord.y - town.coord.y, 2)));
+    return static_cast<unsigned>(sqrt(pow(coord.x - town->coord.x, 2) + pow(coord.y - town->coord.y, 2)));
 }
 
-void Datastructures::transfer_vassals(const std::vector<TownID>& vassals, const TownID& current_master, Town& new_master)
+void Datastructures::transfer_vassals(const std::vector<Town*>& vassals, const Town* current_master, Town* new_master) const
 {
     //remove the town-to-be-deleted from the new master's list of vassals
-    auto masters_vassals = new_master.vassals;
+    auto& masters_vassals = new_master->vassals;
     masters_vassals.erase(std::find(masters_vassals.begin(), masters_vassals.end(), current_master));
 
     //set each vassals master to be the new master
     //and add each new vassal to the new masters list of vassals
     for (const auto& vassal : vassals)
     {
-        database_.find(vassal)->second.master = new_master.id;
-        new_master.vassals.push_back(vassal);
+        vassal->master = new_master;
+        new_master->vassals.push_back(vassal);
     }
 }
