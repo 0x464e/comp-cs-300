@@ -104,8 +104,6 @@ struct Town
 using Database = std::unordered_map<TownID, Town>;
 
 
-// This is the class you are supposed to implement
-
 class Datastructures
 {
 public:
@@ -203,7 +201,10 @@ private:
     [[nodiscard]] unsigned get_distance_from_coord(const Town* town, const Coord& coord = { 0, 0 }) const;
 
     // helper function to transfer a list of vassals to a new master town
-    void transfer_vassals(const std::vector<Town*>& vassals, const Town* current_master, Town* new_master) const;
+    static void transfer_vassals(const Town* current_master, Town* new_master);
+
+    //dfs recursive algorithm to get the longest vassal path for a town
+    static size_t recursive_vassal_path(const Town* town, std::vector<TownID>& current_path, std::vector<TownID>& longest_path);
 };
 
 #endif // DATASTRUCTURES_HH

@@ -247,18 +247,27 @@ bool Datastructures::remove_town(TownID id)
     if (town == database_.end())
         return false;
 
+    const auto master = town->second.master;
+
     //if the town has vassals
     //utilize C++17 if-init-statements
     if (const auto vassals = town->second.vassals; !vassals.empty())
     {
         //if this town has a master, make each vassal's current master be
         //this town's master
-        if (const auto master = town->second.master; master)
-            transfer_vassals(vassals, &town->second, master);
+        if (master)
+            transfer_vassals(&town->second, master);
         //if this town didn't have a master, just clear each vassal's master
         else
             for (const auto& vassal : vassals)
                 vassal->master = nullptr;
+    }
+   
+    if (master)
+    {
+        //remove the town-to-be-deleted from the master's list of vassals
+        auto& masters_vassals = master->vassals;
+        masters_vassals.erase(std::find(masters_vassals.begin(), masters_vassals.end(), &town->second));
     }
 
     //finally remove this town from the database
@@ -290,18 +299,38 @@ std::vector<TownID> Datastructures::towns_nearest(Coord coord)
     return town_ids;
 }
 
-std::vector<TownID> Datastructures::longest_vassal_path(TownID /*id*/)
+std::vector<TownID> Datastructures::longest_vassal_path(TownID id)
 {
-    // Replace the line below with your implementation
-    // Also uncomment parameters ( /* param */ -> param )
-    throw NotImplemented("longest_vassal_path()");
+    //if there are no towns, we don't need to do anything
+    if (database_.empty())
+        return {};
+
+    //if town doesnt exist
+    const auto town = database_.find(id);
+    if (town == database_.end())
+        return { NO_TOWNID };
+
+    //vector to store the longest path
+    std::vector longest_path{ id };
+    //temp vector used by the algorithm
+    auto current_path = longest_path;
+
+    recursive_vassal_path(&town->second, current_path, longest_path);
+    return longest_path;
 }
 
-int Datastructures::total_net_tax(TownID /*id*/)
+int Datastructures::total_net_tax(TownID id)
 {
-    // Replace the line below with your implementation
-    // Also uncomment parameters ( /* param */ -> param )
-    throw NotImplemented("total_net_tax()");
+    //if there are no towns, we don't need to do anything
+    if (database_.empty())
+        return NO_VALUE;
+
+    //if town doesnt exist
+    const auto town = database_.find(id);
+    if (town == database_.end())
+        return NO_VALUE;
+
+
 }
 
 unsigned Datastructures::get_distance_from_coord(const Town* town, const Coord& coord) const
@@ -310,17 +339,36 @@ unsigned Datastructures::get_distance_from_coord(const Town* town, const Coord& 
     return static_cast<unsigned>(sqrt(pow(coord.x - town->coord.x, 2) + pow(coord.y - town->coord.y, 2)));
 }
 
-void Datastructures::transfer_vassals(const std::vector<Town*>& vassals, const Town* current_master, Town* new_master) const
+void Datastructures::transfer_vassals(const Town* current_master, Town* new_master)
 {
-    //remove the town-to-be-deleted from the new master's list of vassals
-    auto& masters_vassals = new_master->vassals;
-    masters_vassals.erase(std::find(masters_vassals.begin(), masters_vassals.end(), current_master));
-
     //set each vassals master to be the new master
     //and add each new vassal to the new masters list of vassals
-    for (const auto& vassal : vassals)
+    for (const auto& vassal : current_master->vassals)
     {
         vassal->master = new_master;
         new_master->vassals.push_back(vassal);
     }
+}
+
+size_t Datastructures::recursive_vassal_path(const Town* town, std::vector<TownID>& current_path, std::vector<TownID>& longest_path)
+{
+    //if the current town no longer has vassals
+    //start returning from the recursion
+    if (town->vassals.empty())
+        return current_path.size();
+
+    for(const auto& vassal : town->vassals)
+    {
+        //add current vassal to the path and go deeper in the recursion
+        current_path.push_back(vassal->id);
+
+        //the current path is done we return from the recursion
+        //now check if the current path is longer than the stored longest path
+        if (recursive_vassal_path(vassal, current_path, longest_path) > longest_path.size())
+            longest_path = current_path;
+
+        //remove last element from the current path when we're returning from the recursion stages
+        current_path.pop_back();
+    }
+    return current_path.size();
 }
