@@ -9,6 +9,7 @@
 #include <random>
 
 #include <cmath>
+#include <map>
 
 std::minstd_rand rand_engine; // Reasonably quick pseudo-random generator
 
@@ -330,7 +331,15 @@ int Datastructures::total_net_tax(TownID id)
     if (town == database_.end())
         return NO_VALUE;
 
+    auto net_tax = recursive_net_tax(&town->second);
 
+    //if the town has a master, subtract the 10% that gets paid to the master
+    //cast to uint to floor efficiently
+    if(town->second.master)
+        net_tax -= static_cast<unsigned>(.1 * net_tax);
+
+    //cast to int since this function should return ints (for whatever reason)
+    return static_cast<int>(net_tax);
 }
 
 unsigned Datastructures::get_distance_from_coord(const Town* town, const Coord& coord) const
@@ -371,4 +380,27 @@ size_t Datastructures::recursive_vassal_path(const Town* town, std::vector<TownI
         current_path.pop_back();
     }
     return current_path.size();
+}
+
+unsigned Datastructures::recursive_net_tax(const Town* town)
+{
+    //if the current town no longer has vassals
+    //start returning from the recursion
+    if (town->vassals.empty())
+        return town->tax;
+
+    //for each town store how much they get from their vassals
+    auto tax_earnings = 0u;
+
+    //loop through each vassal going deeper and deeper into the
+    //into the recursion
+    //when returning from the recursion, increase this town's
+    //tax earnings by 0.1 * vassal's net tax
+    //cast to uint to floor efficiently
+    for(const auto& vassal : town->vassals)
+        tax_earnings += static_cast<unsigned>(.1 * recursive_net_tax(vassal));
+
+    //when all the vassals have been looped through, go up a level in the recursion
+    //returning this town's tax earning and this town's own tax
+    return tax_earnings + town->tax;
 }

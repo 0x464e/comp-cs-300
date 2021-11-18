@@ -16,6 +16,7 @@
 #include <exception>
 #include <iterator>
 
+
 // Types for IDs
 using TownID = std::string;
 using Name = std::string;
@@ -205,6 +206,9 @@ private:
 
     //dfs recursive algorithm to get the longest vassal path for a town
     static size_t recursive_vassal_path(const Town* town, std::vector<TownID>& current_path, std::vector<TownID>& longest_path);
+
+    //dfs recursive algorithm to calculate the net tax for a given town
+    static unsigned recursive_net_tax(const Town* town);
 };
 
 #endif // DATASTRUCTURES_HH
