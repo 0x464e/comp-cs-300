@@ -44,7 +44,7 @@ bool Datastructures::add_town(TownID id, const Name& name, Coord coord, int tax)
 {
     //insert() returns a boolean value indicating whether or not the insertion was successful
     //we can just simply return that value
-    return database_.insert({ id, { id, name, coord, tax } }).second;
+    return database_.insert({ id, { id, name, coord, get_distance_from_coord(coord), tax } }).second;
 }
 
 Name Datastructures::get_town_name(TownID id)
@@ -115,14 +115,32 @@ bool Datastructures::change_town_name(TownID id, const Name& newname)
 
 std::vector<TownID> Datastructures::towns_alphabetically()
 {
-    std::vector<TownID> towns{};
+    std::vector<Town*> towns{};
+
+    //reserve space to avoid possible reallocations
+    towns.reserve(database_.size());
 
     //transform to a vector of town ids by only taking the key of each database element
-    std::transform(database_.begin(), database_.end(), std::back_inserter(towns), [](const auto& town) { return town.first; });
+    std::transform(database_.begin(), database_.end(), std::back_inserter(towns), [](auto& town) { return &town.second; });
 
     //sort using default string comparison
-    std::sort(towns.begin(), towns.end());
-    return towns;
+    std::sort(towns.begin(), towns.end(), [](const auto& town1, const auto& town2)
+    {
+        return town1->name < town2->name;
+    });
+
+    std::vector<TownID> town_ids{};
+
+    //reserve space to avoid possible reallocations
+    town_ids.reserve(database_.size());
+
+    //transform vector of town pointers to a vector of town ids
+    std::transform(towns.begin(), towns.end(), std::back_inserter(town_ids), [](const auto& town)
+    {
+        return town->id;
+    });
+
+    return town_ids;
 }
 
 std::vector<TownID> Datastructures::towns_distance_increasing()
@@ -137,9 +155,9 @@ std::vector<TownID> Datastructures::towns_distance_increasing()
     std::transform(database_.begin(), database_.end(), std::back_inserter(towns), [](auto& town) { return &town.second; });
 
     //sort using a custom comparator lambda
-    std::sort(towns.begin(), towns.end(), [this](const auto& town1, const auto& town2)
+    std::sort(towns.begin(), towns.end(), [](const auto& town1, const auto& town2)
     {
-        return get_distance_from_coord(town1) < get_distance_from_coord(town2);
+        return town1->distance_from_origin < town2->distance_from_origin;
     });
     
     std::vector<TownID> town_ids{};
@@ -159,7 +177,7 @@ TownID Datastructures::min_distance()
     //returns the key of the element (the town's id)
     return std::min_element(database_.begin(), database_.end(), [this](const auto& town1, const auto& town2)
     {
-        return get_distance_from_coord(&town1.second) < get_distance_from_coord(&town2.second);
+        return town1.second.distance_from_origin < town2.second.distance_from_origin;
     })->first;
 }
 
@@ -173,7 +191,7 @@ TownID Datastructures::max_distance()
     //returns the key of the element (the town's id)
     return std::max_element(database_.begin(), database_.end(), [this](const auto& town1, const auto& town2)
     {
-        return get_distance_from_coord(&town1.second) < get_distance_from_coord(&town2.second);
+        return town1.second.distance_from_origin < town2.second.distance_from_origin;
     })->first;
 }
 
@@ -207,6 +225,9 @@ std::vector<TownID> Datastructures::get_town_vassals(TownID id)
 
     std::vector<TownID> vassal_ids{};
     const auto vassals = town->second.vassals;
+
+    //reserve space to avoid possible reallocations
+    vassal_ids.reserve(vassals.size());
 
     //transform vector of town pointers (vassals) to vector or their ids
     std::transform(vassals.begin(), vassals.end(), std::back_inserter(vassal_ids), [](const auto& vassal) { return vassal->id; });
@@ -278,25 +299,46 @@ bool Datastructures::remove_town(TownID id)
 
 std::vector<TownID> Datastructures::towns_nearest(Coord coord)
 {
+    //temp struct to represent a town and its distance from
+    //the desired point
+    struct TownDistance
+    {
+        TownID id{};
+        unsigned distance{};
+    };
+
     //if there are no towns, we don't need to do anything
     if (database_.empty())
         return {};
 
-    std::vector<Town*> towns{};
+    std::vector<TownDistance*> towns_distance{};
+    //reserve space to avoid possible reallocations
+    towns_distance.reserve(database_.size());
 
-    //transform unordered_map<string, Town> to a vector of Town pointers
-    std::transform(database_.begin(), database_.end(), std::back_inserter(towns), [](auto& town) { return &town.second; });
-
-    //sort the vector of town pointers
-    std::sort(towns.begin(), towns.end(), [this, coord](const auto& town1, const auto& town2)
+    //transform the database to a vector of TownDistance pointers
+    //pre calculates the distance from the desired point for each town
+    std::transform(database_.begin(), database_.end(), std::back_inserter(towns_distance), [this, coord](const auto& town)
     {
-        return get_distance_from_coord(town1, coord) < get_distance_from_coord(town2, coord);
+        return new TownDistance{ town.second.id, get_distance_from_coord(town.second.coord, coord) };
+    });
+
+    //efficiently sort based on the distances that were calculated above
+    std::sort(towns_distance.begin(), towns_distance.end(), [](const auto& town1, const auto& town2)
+    {
+        return town1->distance < town2->distance;
     });
 
     std::vector<TownID> town_ids{};
+    //reserve space to avoid possible reallocations
+    town_ids.reserve(database_.size());
 
-    //transform sorted vector of town pointers to a vector of their ids
-    std::transform(towns.begin(), towns.end(), std::back_inserter(town_ids), [](const auto& town) { return town->id; });
+    //transform vector of TownDistance pointers to a vector or TownIDs
+    std::transform(towns_distance.begin(), towns_distance.end(), std::back_inserter(town_ids), [](const auto& town) { return town->id; });
+
+    //deallocate the TownDistance pointers that were created in the beginning
+    for (const auto& town : towns_distance)
+        delete town;
+
     return town_ids;
 }
 
@@ -342,10 +384,14 @@ int Datastructures::total_net_tax(TownID id)
     return static_cast<int>(net_tax);
 }
 
-unsigned Datastructures::get_distance_from_coord(const Town* town, const Coord& coord) const
+unsigned Datastructures::get_distance_from_coord(const Coord& town_location, const Coord& coord) const
 {
+    const auto x = coord.x - town_location.x;
+    const auto y = coord.y - town_location.y;
     //cast to uint to floor efficiently
-    return static_cast<unsigned>(sqrt(pow(coord.x - town->coord.x, 2) + pow(coord.y - town->coord.y, 2)));
+    //when just doing comparisons, normally sqrt could be left out here to save on perfomance
+    //but the documentation has very strict rules on flooring before comparing, so it can't be left out
+    return static_cast<unsigned>(sqrt(x * x + y * y));
 }
 
 void Datastructures::transfer_vassals(const Town* current_master, Town* new_master)

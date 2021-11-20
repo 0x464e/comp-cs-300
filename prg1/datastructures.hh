@@ -96,6 +96,7 @@ struct Town
     TownID id{};
     Name name{};
     Coord coord{};
+    unsigned distance_from_origin{};
     int tax{};
     Town* master{};
     std::vector<Town*> vassals{};
@@ -111,86 +112,164 @@ public:
     Datastructures();
     ~Datastructures();
 
-    // Estimate of performance:
+    // When considering performances, the cases where the database is empty
+    // or the requested town isn't found are ignored.
+    // These would give Omega(1) where-ever applicable.
+
+
+    // Estimate of performance: Theta(1)
     // Short rationale for estimate:
+    // The containers size (number of elements) is tracked during its use,
+    // no extra calculations are needed to retrieve its size.
     unsigned int town_count();
 
-    // Estimate of performance:
+    // Estimate of performance: Theta(n), where n is the number of elements in the database
     // Short rationale for estimate:
+    // The estimate comes straight from the documentation of this method
     void clear_all();
 
-    // Estimate of performance:
+    // Estimate of performance: O(n), Omega(1), where n is the container size
     // Short rationale for estimate:
+    // The documentation states that inserting to an
+    // unordered map is linear in the worst case, but in the average case constant
     bool add_town(TownID id, Name const& name, Coord coord, int tax);
 
-    // Estimate of performance:
+    // Estimate of performance: O(n), Omega(1), where n is the container size
     // Short rationale for estimate:
+    // The documentation states that finding from an
+    // unordered map is linear in the worst case, but in the average case constant
     Name get_town_name(TownID id);
 
-    // Estimate of performance:
+    // Estimate of performance: O(n), Omega(1), where n is the container size
     // Short rationale for estimate:
+    // The documentation states that finding from an
+    // unordered map is linear in the worst case, but in the average case constant
     Coord get_town_coordinates(TownID id);
 
-    // Estimate of performance:
+    // Estimate of performance: O(n), Omega(1), where n is the container size
     // Short rationale for estimate:
+    // The documentation states that finding from an
+    // unordered map is linear in the worst case, but in the average case constant
     int get_town_tax(TownID id);
 
-    // Estimate of performance:
+    // Estimate of performance: Theta(n), where n is the number of elements in the database
     // Short rationale for estimate:
+    // std::transform performs exactly the container's number of elements amount of specified operations
+    // and back inserting to a vector is constant in time.
     std::vector<TownID> all_towns();
 
-    // Estimate of performance:
+    // Estimate of performance: Theta(n), where n is the number of elements in the database
     // Short rationale for estimate:
+    // The for-loop has to go through each element in the database 
+    // and back inserting to a vector is constant in time.
     std::vector<TownID> find_towns(Name const& name);
 
-    // Estimate of performance:
+    // Estimate of performance: O(n), Omega(1), where n is the container size
     // Short rationale for estimate:
+    // The documentation states that finding from an
+    // unordered map is linear in the worst case, but in the average case constant
     bool change_town_name(TownID id, Name const& newname);
 
-    // Estimate of performance:
+    // Estimate of performance: Theta(nlog(n)), where n is the number of elements in the database
     // Short rationale for estimate:
+    // std::transform performs exactly the container's number of elements amount of specified operations
+    // and back inserting to a vector is constant in time.
+    // according to the documentation, std::sorting the vector is performs nlog(n) amount of
+    // comparisons, where n is the amount of elements in the vector (the size of the database)
+    // the comparisons are also constant in time in this case
+    // nlog(n) is worse than n, so it's the asymptotic performance
     std::vector<TownID> towns_alphabetically();
 
-    // Estimate of performance:
+    // Estimate of performance: Theta(nlog(n)), where n is the number of elements in the database
     // Short rationale for estimate:
+    // std::transform performs exactly the container's number of elements amount of specified operations
+    // and back inserting to a vector is constant in time.
+    // According to the documentation, std::sorting the vector is performs nlog(n) amount of
+    // comparisons, where n is the amount of elements in the vector (the size of the database)
+    // The comparisons are also constant in time in this case.
+    // nlog(n) is worse than n, so it's the asymptotic performance
     std::vector<TownID> towns_distance_increasing();
 
-    // Estimate of performance:
+    // Estimate of performance: Theta(n), where n is the number of elements in the database
     // Short rationale for estimate:
+    // According to the documentation, std::min_element performs exactly max(n-1, 0) amount
+    // of comparisons, there n is the amount of elements in the container.
+    // The comparisons are constant in time in this case.
     TownID min_distance();
 
-    // Estimate of performance:
+    // Estimate of performance: Theta(n), where n is the number of elements in the database
     // Short rationale for estimate:
+    // According to the documentation, std::max_element performs exactly max(n-1, 0) amount
+    // of comparisons, there n is the amount of elements in the container.
+    // The comparisons are constant in time in this case.
     TownID max_distance();
 
-    // Estimate of performance:
+    // Estimate of performance: O(n), Omega(1), where n is the container size
     // Short rationale for estimate:
+    // The documentation states that finding from an
+    // unordered map is linear in the worst case, but in the average case constant.
+    // Back inserting to vector is constant in time.
     bool add_vassalship(TownID vassalid, TownID masterid);
 
-    // Estimate of performance:
+    // Estimate of performance: Theta(n)
     // Short rationale for estimate:
+    // std::transform performs exactly the container's number of elements amount of specified operations
+    // and back inserting to a vector is constant in time.
     std::vector<TownID> get_town_vassals(TownID id);
 
-    // Estimate of performance:
+    // Estimate of performance: O(n), Omega(1), where n is the number of elements in the database.
     // Short rationale for estimate:
+    // The documentation states that finding from an
+    // unordered map is linear in the worst case, but in the average case constant.
+    // Also in the worst case the requested town could be
+    // the deepest element in a vassal chain, so that the for-loop needs to run n-1 times,
+    // where n is the number of elements in the database.
+    // In the best case finding from the database is constant and the town doesn't have masters.
+    // The average case is somewhere in-between and likely closer to constant than linear.
     std::vector<TownID> taxer_path(TownID id);
 
     // Non-compulsory phase 1 operations
 
-    // Estimate of performance:
+    // Estimate of performance: O(n), Omega(1), where n is the number of elements in the database.
     // Short rationale for estimate:
+    // All of these are from the documentation:
+    // unorderedmap::find O(n), Theta(1)
+    // std::find O(n), Omega(1)
+    // vector::erase O(n), Omega(1)
+    // unorderedmap::erase O(n), Omega(1)
+    // Also the for-loop can in the worst case run n times, and in the best case not run at all
+    // In all of these n is the number of elements in the database.
+    // The average case is somewhere in-between.
     bool remove_town(TownID id);
 
-    // Estimate of performance:
+    // Estimate of performance: Theta(nlog(n)), where n is the number of elements in the database
     // Short rationale for estimate:
+    // std::transform performs exactly the container's number of elements amount of specified operations
+    // and back inserting to a vector is constant in time.
+    // According to the documentation, std::sorting the vector is performs nlog(n) amount of
+    // comparisons, where n is the amount of elements in the vector (the size of the database)
+    // The comparisons are also constant in time in this case.
+    // nlog(n) is worse than n, so it's the asymptotic performance.
     std::vector<TownID> towns_nearest(Coord coord);
 
-    // Estimate of performance:
+    // Estimate of performance: O(n), Omega(1) where n is the number of elements in the database 
     // Short rationale for estimate:
+    // The documentation states that finding from an unordered map is 
+    // linear in the worst case, but constant in the average case.
+    // The recursion needs to "loop" exactly as many times as possible.
+    // In the worse case it can be each of towns in the database,
+    // and in the best cast the requested town doesn't have vassals.
+    // The average case is somewhere in-between.
     std::vector<TownID> longest_vassal_path(TownID id);
 
-    // Estimate of performance:
+    // Estimate of performance: O(n), Omega(1) where n is the number of elements in the database 
     // Short rationale for estimate:
+    // The documentation states that finding from an unordered map is 
+    // linear in the worst case, but constant in the average case.
+    // The recursion needs to "loop" exactly as many times as possible.
+    // In the worse case it can be each of towns in the database,
+    // and in the best cast the requested town doesn't have vassals.
+    // The average case is somewhere in-between.
     int total_net_tax(TownID id);
 
 private:
@@ -199,7 +278,7 @@ private:
 
     // helper function to calculate distance between a town and a coordinate
     // coordinate defaults to (0,0)
-    [[nodiscard]] unsigned get_distance_from_coord(const Town* town, const Coord& coord = { 0, 0 }) const;
+    [[nodiscard]] unsigned get_distance_from_coord(const Coord& town_location, const Coord& coord = { 0, 0 }) const;
 
     // helper function to transfer a list of vassals to a new master town
     static void transfer_vassals(const Town* current_master, Town* new_master);
