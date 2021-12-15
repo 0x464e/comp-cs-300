@@ -7,9 +7,7 @@
 #include "datastructures.hh"
 
 #include <random>
-
 #include <cmath>
-#include <map>
 
 std::minstd_rand rand_engine; // Reasonably quick pseudo-random generator
 
@@ -293,6 +291,22 @@ bool Datastructures::remove_town(TownID id)
         masters_vassals.erase(std::find(masters_vassals.begin(), masters_vassals.end(), &town->second));
     }
 
+    //if this town has roads
+    if (!town->second.roads_to.empty())
+    {
+        for(auto& [connected_town, distance] : town->second.roads_to)
+            connected_town->roads_to.erase(std::find_if(connected_town->roads_to.begin(), connected_town->roads_to.end(), [&town](const auto& road)
+            {
+                return road.town == &town->second;
+            }));
+
+
+        roads_.erase(std::remove_if(roads_.begin(), roads_.end(), [&id](const auto& town_pair)
+        {
+            return town_pair.first == id || town_pair.second == id;
+        }), roads_.end());
+    }
+
     //finally remove this town from the database
     database_.erase(id);
     return true;
@@ -427,6 +441,10 @@ std::vector<std::pair<TownID, TownID>> Datastructures::all_roads()
 
 bool Datastructures::add_road(TownID town1_id, TownID town2_id)
 {
+    //if the towns are the same
+    if (town1_id == town2_id)
+        return false;
+
     //if either of the towns doesn't exist
     const auto town1 = database_.find(town1_id);
     if (town1 == database_.end())
@@ -477,15 +495,17 @@ std::vector<TownID> Datastructures::get_roads_from(TownID id)
     return connected_towns;
 }
 
-std::vector<TownID> Datastructures::any_route(TownID /*fromid*/, TownID /*toid*/)
+std::vector<TownID> Datastructures::any_route(TownID fromid, TownID toid)
 {
-    // Replace the line below with your implementation
-    // Also uncomment parameters ( /* param */ -> param )
-    throw NotImplemented("any_route()");
+    return least_towns_route(fromid, toid);
 }
 
 bool Datastructures::remove_road(TownID town1_id, TownID town2_id)
 {
+    //if the towns are the same
+    if (town1_id == town2_id)
+        return false;
+
     //if either of the towns doesn't exist
     const auto town1 = database_.find(town1_id);
     if (town1 == database_.end())
@@ -516,34 +536,139 @@ bool Datastructures::remove_road(TownID town1_id, TownID town2_id)
         return road.town->id == town1_id;
     }));
 
+    roads_.erase(std::find_if(roads_.begin(), roads_.end(), [&town1_id, &town2_id](const auto& town_pair)
+    {
+        return (town_pair.first == town1_id && town_pair.second == town2_id) || (town_pair.first == town2_id && town_pair.second == town1_id);
+    }));
+
     return true;
 }
 
-std::vector<TownID> Datastructures::least_towns_route(TownID /*fromid*/, TownID /*toid*/)
+std::vector<TownID> Datastructures::least_towns_route(TownID fromid, TownID toid)
 {
-    // Replace the line below with your implementation
-    // Also uncomment parameters ( /* param */ -> param )
-    throw NotImplemented("least_towns_route()");
+    //if either of the towns doesn't exist
+    const auto town1 = database_.find(fromid);
+    if (town1 == database_.end())
+        return { NO_TOWNID };
+
+    const auto town2 = database_.find(toid);
+    if (town2 == database_.end())
+        return { NO_TOWNID };
+
+    const auto& start = &town1->second;
+    const auto& destination = &town2->second;
+
+    for (auto& [id, town] : database_)
+    {
+        town.processed = false;
+        town.prev_town = nullptr;
+    }
+
+    start->processed = true;
+    std::deque queue{ start };
+
+    while (!queue.empty())
+    {
+        const auto town = queue.front();
+        queue.pop_front();
+
+        for (auto& road : town->roads_to)
+        {
+            if (road.town->processed)
+                continue;
+
+            if (road.town == destination)
+            {
+                std::vector route{ destination->id };
+                auto step = town;
+
+                for(;;)
+                {
+                    if (!step->prev_town)
+                        break;
+                    route.push_back(step->id);
+                    step = step->prev_town;
+                }
+
+                route.push_back(step->id);
+                std::reverse(route.begin(), route.end());
+                return route;
+            }
+
+            road.town->processed = true;
+            road.town->prev_town = town;
+
+            queue.push_back(road.town);
+        }
+    }
+
+    return { };
 }
 
-std::vector<TownID> Datastructures::road_cycle_route(TownID /*startid*/)
+std::vector<TownID> Datastructures::road_cycle_route(TownID startid)
 {
-    // Replace the line below with your implementation
-    // Also uncomment parameters ( /* param */ -> param )
-    throw NotImplemented("road_cycle_route()");
+    //if town doesn't exist
+    const auto start = database_.find(startid);
+    if (start == database_.end())
+        return { NO_TOWNID };
+
+    for (auto& [id, town] : database_)
+    {
+        town.processed = false;
+        town.prev_town = nullptr;
+    }
+
+    std::stack<Town*> stack{};
+    stack.push(&start->second);
+
+    while (!stack.empty())
+    {
+        auto& town = stack.top();
+        stack.pop();
+
+        if (town->processed)
+            continue;
+
+        town->processed = true;
+        stack.push(town);
+
+        for(auto& road : town->roads_to)
+        {
+            if (!road.town->processed)
+            {
+                road.town->prev_town = town;
+                stack.push(road.town);
+            }
+            else if (road.town != town->prev_town)
+            {
+                std::vector route{ road.town->id };
+                auto& step = town;
+                for (;;)
+                {
+                    if (!step->prev_town)
+                        break;
+                    route.push_back(step->id);
+                    step = step->prev_town;
+                }
+
+                route.push_back(step->id);
+                std::reverse(route.begin(), route.end());
+                return route;
+            }
+        }
+    }
+
+    return { };
 }
 
-std::vector<TownID> Datastructures::shortest_route(TownID /*fromid*/, TownID /*toid*/)
+std::vector<TownID> Datastructures::shortest_route(TownID fromid, TownID toid)
 {
-    // Replace the line below with your implementation
-    // Also uncomment parameters ( /* param */ -> param )
-    throw NotImplemented("shortest_route()");
+    return { };
 }
 
 Distance Datastructures::trim_road_network()
 {
-    // Replace the line below with your implementation
-    throw NotImplemented("trim_road_network()");
+    return 1;
 }
 
 size_t Datastructures::recursive_vassal_path(const Town* town, std::vector<TownID>& current_path, std::vector<TownID>& longest_path)

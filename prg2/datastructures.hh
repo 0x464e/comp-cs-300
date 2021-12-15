@@ -16,6 +16,8 @@
 #include <exception>
 #include <iterator>
 #include <unordered_set>
+#include <deque>
+#include <stack>
 
 
 // Types for IDs
@@ -131,6 +133,10 @@ struct Town
     Town* master{};
     std::vector<Town*> vassals{};
     std::unordered_set<Road, RoadHasher, RoadComparator> roads_to{};
+
+    //fields for graph algorims
+    bool processed{};
+    Town* prev_town{};
 };
 
 //typedef for the main database that holds all the data about towns
