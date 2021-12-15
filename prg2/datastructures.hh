@@ -15,6 +15,7 @@
 #include <functional>
 #include <exception>
 #include <iterator>
+#include <unordered_set>
 
 
 // Types for IDs
@@ -90,6 +91,35 @@ private:
     std::string msg_;
 };
 
+
+
+//forward declare
+struct Town;
+
+struct Road
+{
+    Town* town{};
+    unsigned length{};
+};
+
+struct RoadHasher
+{
+    //hash based off the town pointer
+    size_t operator()(const Road& road) const
+    {
+        return std::hash<Town*>()(road.town);
+    }
+};
+
+struct RoadComparator
+{
+    //compare based off town pointers
+    bool operator()(const Road& first, const Road& second) const
+    {
+        return first.town == second.town;
+    }
+};
+
 // a struct to represnt a town and its data
 struct Town
 {
@@ -100,6 +130,7 @@ struct Town
     int tax{};
     Town* master{};
     std::vector<Town*> vassals{};
+    std::unordered_set<Road, RoadHasher, RoadComparator> roads_to{};
 };
 
 //typedef for the main database that holds all the data about towns
@@ -285,7 +316,7 @@ public:
 
     // Estimate of performance:
     // Short rationale for estimate:
-    bool add_road(TownID town1, TownID town2);
+    bool add_road(TownID town1_id, TownID town2_id);
 
     // Estimate of performance:
     // Short rationale for estimate:
@@ -299,7 +330,7 @@ public:
 
     // Estimate of performance:
     // Short rationale for estimate:
-    bool remove_road(TownID town1, TownID town2);
+    bool remove_road(TownID town1_id, TownID town2_id);
 
     // Estimate of performance:
     // Short rationale for estimate:
@@ -321,6 +352,9 @@ private:
     // database to hold all information about towns
     Database database_{};
 
+    // list of all roads currently in the database
+    std::vector<std::pair<TownID, TownID>> roads_{};
+
     // helper function to calculate distance between a town and a coordinate
     // coordinate defaults to (0,0)
     [[nodiscard]] unsigned get_distance_from_coord(const Coord& town_location, const Coord& coord = { 0, 0 }) const;
@@ -328,10 +362,10 @@ private:
     // helper function to transfer a list of vassals to a new master town
     static void transfer_vassals(const Town* current_master, Town* new_master);
 
-    //dfs recursive algorithm to get the longest vassal path for a town
+    // dfs recursive algorithm to get the longest vassal path for a town
     static size_t recursive_vassal_path(const Town* town, std::vector<TownID>& current_path, std::vector<TownID>& longest_path);
 
-    //dfs recursive algorithm to calculate the net tax for a given town
+    // dfs recursive algorithm to calculate the net tax for a given town
     static unsigned recursive_net_tax(const Town* town);
 };
 

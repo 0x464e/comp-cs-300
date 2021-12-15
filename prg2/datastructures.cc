@@ -38,7 +38,7 @@ unsigned int Datastructures::town_count()
 void Datastructures::clear_all()
 {
     database_.clear();
-    //TODO: clear roads
+    roads_.clear();
 }
 
 bool Datastructures::add_town(TownID id, const Name& name, Coord coord, int tax)
@@ -414,28 +414,67 @@ void Datastructures::transfer_vassals(const Town* current_master, Town* new_mast
 
 void Datastructures::clear_roads()
 {
-    // Replace the line below with your implementation
-    throw NotImplemented("clear_roads()");
+    for (auto& [id, town] : database_)
+        town.roads_to.clear();
+
+    roads_.clear();
 }
 
 std::vector<std::pair<TownID, TownID>> Datastructures::all_roads()
 {
-    // Replace the line below with your implementation
-    throw NotImplemented("all_roads()");
+    return roads_;
 }
 
-bool Datastructures::add_road(TownID /*town1*/, TownID /*town2*/)
+bool Datastructures::add_road(TownID town1_id, TownID town2_id)
 {
-    // Replace the line below with your implementation
-    // Also uncomment parameters ( /* param */ -> param )
-    throw NotImplemented("add_road()");
+    //if either of the towns doesn't exist
+    const auto town1 = database_.find(town1_id);
+    if (town1 == database_.end())
+        return false;
+
+    const auto town2 = database_.find(town2_id);
+    if (town2 == database_.end())
+        return false;
+
+    auto& town1_roads = town1->second.roads_to;
+    auto& town2_roads = town2->second.roads_to;
+
+    //if the road already exists
+    //searching from a town's roads_to unordered_set is faster than searching from the roads_ list
+    const auto road = std::find_if(town1_roads.begin(), town1_roads.end(), [&town2_id](const auto& road)
+    {
+        return road.town->id == town2_id;
+    });
+
+    if (road != town1_roads.end())
+        return false;
+
+    const auto road_length = get_distance_from_coord(town1->second.coord, town2->second.coord);
+
+    //add the road for both towns
+    town1_roads.insert({ &town2->second, road_length });
+    town2_roads.insert({ &town1->second, road_length });
+
+    //town with the smaller id comes first
+    const auto town_pair = town1_id < town2_id ? std::make_pair(town1_id, town2_id) : std::make_pair(town2_id, town1_id);
+
+    //add this road to the list of all roads
+    roads_.push_back(town_pair);
+
+    return true;
 }
 
-std::vector<TownID> Datastructures::get_roads_from(TownID /*id*/)
+std::vector<TownID> Datastructures::get_roads_from(TownID id)
 {
-    // Replace the line below with your implementation
-    // Also uncomment parameters ( /* param */ -> param )
-    throw NotImplemented("get_roads_from()");
+    //if town doesnt exist
+    const auto town = database_.find(id);
+    if (town == database_.end())
+        return { NO_TOWNID };
+
+    std::vector<TownID> connected_towns{};
+    std::transform(town->second.roads_to.begin(), town->second.roads_to.end(), std::back_inserter(connected_towns), [](const auto& road) { return road.town->id; });
+
+    return connected_towns;
 }
 
 std::vector<TownID> Datastructures::any_route(TownID /*fromid*/, TownID /*toid*/)
@@ -445,11 +484,39 @@ std::vector<TownID> Datastructures::any_route(TownID /*fromid*/, TownID /*toid*/
     throw NotImplemented("any_route()");
 }
 
-bool Datastructures::remove_road(TownID /*town1*/, TownID /*town2*/)
+bool Datastructures::remove_road(TownID town1_id, TownID town2_id)
 {
-    // Replace the line below with your implementation
-    // Also uncomment parameters ( /* param */ -> param )
-    throw NotImplemented("remove_road()");
+    //if either of the towns doesn't exist
+    const auto town1 = database_.find(town1_id);
+    if (town1 == database_.end())
+        return false;
+
+    const auto town2 = database_.find(town2_id);
+    if (town2 == database_.end())
+        return false;
+
+    auto& town1_roads = town1->second.roads_to;
+    auto& town2_roads = town2->second.roads_to;
+
+    //search for the road from the first town
+    const auto town1_road = std::find_if(town1_roads.begin(), town1_roads.end(), [&town2_id](const auto& road)
+    {
+        return road.town->id == town2_id;
+    });
+
+    //if the road doesnt exist in town 1
+    if (town1_road == town1_roads.end())
+        return false;
+
+    town1_roads.erase(town1_road);
+
+    //if the road existed in town1, it has to exist in town2 as well
+    town2_roads.erase(std::find_if(town2_roads.begin(), town2_roads.end(), [&town1_id](const auto& road)
+    {
+        return road.town->id == town1_id;
+    }));
+
+    return true;
 }
 
 std::vector<TownID> Datastructures::least_towns_route(TownID /*fromid*/, TownID /*toid*/)
