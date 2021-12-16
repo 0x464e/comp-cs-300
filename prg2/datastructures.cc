@@ -319,7 +319,7 @@ std::vector<TownID> Datastructures::towns_nearest(Coord coord)
     struct TownDistance
     {
         TownID id{};
-        unsigned distance{};
+        Distance distance{};
     };
 
     //if there are no towns, we don't need to do anything
@@ -393,31 +393,10 @@ int Datastructures::total_net_tax(TownID id)
     //if the town has a master, subtract the 10% that gets paid to the master
     //cast to uint to floor efficiently
     if (town->second.master)
-        net_tax -= static_cast<unsigned>(.1 * net_tax);
+        net_tax -= static_cast<int>(.1 * net_tax);
 
     //cast to int since this function should return ints (for whatever reason)
-    return static_cast<int>(net_tax);
-}
-
-unsigned Datastructures::get_distance_from_coord(const Coord& town_location, const Coord& coord) const
-{
-    const auto x = coord.x - town_location.x;
-    const auto y = coord.y - town_location.y;
-    //cast to uint to floor efficiently
-    //when just doing comparisons, normally sqrt could be left out here to save on perfomance
-    //but the documentation has very strict rules on flooring before comparing, so it can't be left out
-    return static_cast<unsigned>(sqrt(x * x + y * y));
-}
-
-void Datastructures::transfer_vassals(const Town* current_master, Town* new_master)
-{
-    //set each vassals master to be the new master
-    //and add each new vassal to the new masters list of vassals
-    for (const auto& vassal : current_master->vassals)
-    {
-        vassal->master = new_master;
-        new_master->vassals.push_back(vassal);
-    }
+    return net_tax;
 }
 
 
@@ -558,6 +537,7 @@ std::vector<TownID> Datastructures::least_towns_route(TownID fromid, TownID toid
     const auto& start = &town1->second;
     const auto& destination = &town2->second;
 
+    //reset bfs related fields for each town
     for (auto& [id, town] : database_)
     {
         town.processed = false;
@@ -577,11 +557,15 @@ std::vector<TownID> Datastructures::least_towns_route(TownID fromid, TownID toid
             if (road.town->processed)
                 continue;
 
+            //if the currently processed town is
+            //the destination town, we're done
             if (road.town == destination)
             {
                 std::vector route{ destination->id };
                 auto step = town;
 
+                //construct the route we came from by
+                //going backwards until cant go back anymore
                 for(;;)
                 {
                     if (!step->prev_town)
@@ -591,6 +575,7 @@ std::vector<TownID> Datastructures::least_towns_route(TownID fromid, TownID toid
                 }
 
                 route.push_back(step->id);
+                //flip the route from end->start to start->end
                 std::reverse(route.begin(), route.end());
                 return route;
             }
@@ -612,6 +597,7 @@ std::vector<TownID> Datastructures::road_cycle_route(TownID startid)
     if (start == database_.end())
         return { NO_TOWNID };
 
+    //reset dfs related fields for each town
     for (auto& [id, town] : database_)
     {
         town.processed = false;
@@ -639,10 +625,16 @@ std::vector<TownID> Datastructures::road_cycle_route(TownID startid)
                 road.town->prev_town = town;
                 stack.push(road.town);
             }
+            //if we found an already processed town
+            //and we're not going backwards to where
+            //we came from, we're done
             else if (road.town != town->prev_town)
             {
                 std::vector route{ road.town->id };
                 auto& step = town;
+
+                //construct the route we came from by
+                //going backwards until cant go back anymore
                 for (;;)
                 {
                     if (!step->prev_town)
@@ -652,6 +644,8 @@ std::vector<TownID> Datastructures::road_cycle_route(TownID startid)
                 }
 
                 route.push_back(step->id);
+
+                //flip the route from end->start to start->end
                 std::reverse(route.begin(), route.end());
                 return route;
             }
@@ -663,6 +657,82 @@ std::vector<TownID> Datastructures::road_cycle_route(TownID startid)
 
 std::vector<TownID> Datastructures::shortest_route(TownID fromid, TownID toid)
 {
+    //if towns are the same
+    if (fromid == toid)
+        return { };
+
+    //if either of the towns doesn't exist
+    const auto town1 = database_.find(fromid);
+    if (town1 == database_.end())
+        return { NO_TOWNID };
+
+    const auto town2 = database_.find(toid);
+    if (town2 == database_.end())
+        return { NO_TOWNID };
+
+    const auto& start = &town1->second;
+    const auto& destination = &town2->second;
+
+    //reset A* related fields for each town
+    for (auto& [id, town] : database_)
+    {
+        town.processed = false;
+        town.distance = MAX_VALUE;
+        town.distance_estimate = MAX_VALUE;
+        town.prev_town = nullptr;
+    }
+
+    start->processed = true;
+    start->distance = 0;
+
+    //custom comparator for the priority queue, so it can tell the priority
+    //of towns based off their distance estimates
+    auto comparator = [](const Town* first, const Town* second) { return first->distance_estimate > second->distance_estimate; };
+    std::priority_queue<Town*, std::vector<Town*>, decltype(comparator)> queue(comparator);
+    queue.push(start);
+
+    while (!queue.empty())
+    {
+        const auto town = queue.top();
+        queue.pop();
+
+        //if the currently processed town is
+        //the destination town, we're done
+        if (town == destination) 
+        {
+            std::vector route{ town->id };
+            auto& step = town->prev_town;
+
+            //construct the route we came from by
+            //going backwards until cant go back anymore
+            for (;;)
+            {
+                if (!step->prev_town)
+                    break;
+                route.push_back(step->id);
+                step = step->prev_town;
+            }
+
+            route.push_back(step->id);
+
+            //flip the route from end->start to start->end
+            std::reverse(route.begin(), route.end());
+            return route;
+        }
+
+        for(auto& road : town->roads_to)
+        {
+            //set the distance & distance estimate for
+            //the town connected by this road
+            relax_a(town, &road, destination);
+            if (!road.town->processed)
+            {
+                road.town->processed = true;
+                queue.push(road.town);
+            }
+        }
+    }
+
     return { };
 }
 
@@ -694,7 +764,28 @@ size_t Datastructures::recursive_vassal_path(const Town* town, std::vector<TownI
     return current_path.size();
 }
 
-unsigned Datastructures::recursive_net_tax(const Town* town)
+Distance Datastructures::get_distance_from_coord(const Coord& town_location, const Coord& coord)
+{
+    const auto x = coord.x - town_location.x;
+    const auto y = coord.y - town_location.y;
+    //cast to int to floor efficiently
+    //when just doing comparisons, normally sqrt could be left out here to save on perfomance
+    //but the documentation has very strict rules on flooring before comparing, so it can't be left out
+    return static_cast<Distance>(sqrt(x * x + y * y));
+}
+
+void Datastructures::transfer_vassals(const Town* current_master, Town* new_master)
+{
+    //set each vassals master to be the new master
+    //and add each new vassal to the new masters list of vassals
+    for (const auto& vassal : current_master->vassals)
+    {
+        vassal->master = new_master;
+        new_master->vassals.push_back(vassal);
+    }
+}
+
+int Datastructures::recursive_net_tax(const Town* town)
 {
     //if the current town no longer has vassals
     //start returning from the recursion
@@ -702,7 +793,7 @@ unsigned Datastructures::recursive_net_tax(const Town* town)
         return town->tax;
 
     //for each town store how much they get from their vassals
-    auto tax_earnings = 0u;
+    int tax_earnings{};
 
     //loop through each vassal going deeper and deeper into the
     //into the recursion
@@ -710,9 +801,20 @@ unsigned Datastructures::recursive_net_tax(const Town* town)
     //tax earnings by 0.1 * vassal's net tax
     //cast to uint to floor efficiently
     for (const auto& vassal : town->vassals)
-        tax_earnings += static_cast<unsigned>(.1 * recursive_net_tax(vassal));
+        tax_earnings += static_cast<int>(.1 * recursive_net_tax(vassal));
 
     //when all the vassals have been looped through, go up a level in the recursion
     //returning this town's tax earning and this town's own tax
     return tax_earnings + town->tax;
+}
+
+void Datastructures::relax_a(Town* town, const Road* road, const Town* destination)
+{
+    const auto cost = get_distance_from_coord(town->coord, road->town->coord);
+    if (road->town->distance > town->distance + cost)
+    {
+        road->town->distance = town->distance + cost;
+        road->town->distance_estimate = road->town->distance + road->length;
+        road->town->prev_town = town;
+    }
 }

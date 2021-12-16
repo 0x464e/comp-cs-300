@@ -18,6 +18,7 @@
 #include <unordered_set>
 #include <deque>
 #include <stack>
+#include <queue>
 
 
 // Types for IDs
@@ -29,6 +30,8 @@ const TownID NO_TOWNID = "----------";
 
 // Return value for cases where integer values were not found
 constexpr int NO_VALUE = std::numeric_limits<int>::min();
+
+constexpr int MAX_VALUE = std::numeric_limits<int>::max();
 
 // Return value for cases where name values were not found
 const Name NO_NAME = "!!NO_NAME!!";
@@ -101,7 +104,7 @@ struct Town;
 struct Road
 {
     Town* town{};
-    unsigned length{};
+    Distance length{};
 };
 
 struct RoadHasher
@@ -128,7 +131,7 @@ struct Town
     TownID id{};
     Name name{};
     Coord coord{};
-    unsigned distance_from_origin{};
+    Distance distance_from_origin{};
     int tax{};
     Town* master{};
     std::vector<Town*> vassals{};
@@ -137,6 +140,8 @@ struct Town
     //fields for graph algorims
     bool processed{};
     Town* prev_town{};
+    Distance distance{};
+    Distance distance_estimate{};
 };
 
 //typedef for the main database that holds all the data about towns
@@ -363,7 +368,7 @@ private:
 
     // helper function to calculate distance between a town and a coordinate
     // coordinate defaults to (0,0)
-    [[nodiscard]] unsigned get_distance_from_coord(const Coord& town_location, const Coord& coord = { 0, 0 }) const;
+    [[nodiscard]] static Distance get_distance_from_coord(const Coord& town_location, const Coord& coord = { 0, 0 });
 
     // helper function to transfer a list of vassals to a new master town
     static void transfer_vassals(const Town* current_master, Town* new_master);
@@ -372,7 +377,10 @@ private:
     static size_t recursive_vassal_path(const Town* town, std::vector<TownID>& current_path, std::vector<TownID>& longest_path);
 
     // dfs recursive algorithm to calculate the net tax for a given town
-    static unsigned recursive_net_tax(const Town* town);
+    static int recursive_net_tax(const Town* town);
+
+    // helper function for A* algorithm
+    static void relax_a(Town* town, const Road* road, const Town* destination);
 };
 
 #endif // DATASTRUCTURES_HH
