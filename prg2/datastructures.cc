@@ -174,7 +174,7 @@ TownID Datastructures::min_distance()
 
     //finds the element with a minimum distance from (0,0) using a custom comparator lambda
     //returns the key of the element (the town's id)
-    return std::min_element(database_.begin(), database_.end(), [this](const auto& town1, const auto& town2)
+    return std::min_element(database_.begin(), database_.end(), [](const auto& town1, const auto& town2)
     {
         return town1.second.distance_from_origin < town2.second.distance_from_origin;
     })->first;
@@ -188,7 +188,7 @@ TownID Datastructures::max_distance()
 
     //finds the element with a maximum distance from (0,0) using a custom comparator lambda
     //returns the key of the element (the town's id)
-    return std::max_element(database_.begin(), database_.end(), [this](const auto& town1, const auto& town2)
+    return std::max_element(database_.begin(), database_.end(), [](const auto& town1, const auto& town2)
     {
         return town1.second.distance_from_origin < town2.second.distance_from_origin;
     })->first;
@@ -525,6 +525,10 @@ bool Datastructures::remove_road(TownID town1_id, TownID town2_id)
 
 std::vector<TownID> Datastructures::least_towns_route(TownID fromid, TownID toid)
 {
+    //if the start and destination are the same, there is no route
+    if (fromid == toid)
+        return { };
+
     //if either of the towns doesn't exist
     const auto town1 = database_.find(fromid);
     if (town1 == database_.end())
@@ -657,7 +661,7 @@ std::vector<TownID> Datastructures::road_cycle_route(TownID startid)
 
 std::vector<TownID> Datastructures::shortest_route(TownID fromid, TownID toid)
 {
-    //if towns are the same
+    //if the start and destination are the same, there is no route
     if (fromid == toid)
         return { };
 
@@ -738,7 +742,145 @@ std::vector<TownID> Datastructures::shortest_route(TownID fromid, TownID toid)
 
 Distance Datastructures::trim_road_network()
 {
-    return 1;
+    //if there are no roads
+    if (roads_.empty())
+        return 0;
+
+    //helper struct to store which towns are connected by a road
+    struct connected_towns
+    {
+        Town* town1{};
+        Town* town2{};
+    };
+
+    //store all roads in a set so it's automatically sorted by road distance (cost)
+    std::set<std::pair<Distance, connected_towns*>> all_roads{};
+
+    //populate all_roads and clear each town's roads
+    for(auto& db_town : database_)
+    {
+        for (auto& road : db_town.second.roads_to)
+        {
+            const auto town_pair = new connected_towns{ &db_town.second, road.town };
+            all_roads.insert(std::make_pair(road.length, town_pair));
+
+            //if we added the road from this town already, lets remove it from the second town's roads 
+            //so it doesn't get added twice
+            road.town->roads_to.erase(std::find_if(road.town->roads_to.begin(), road.town->roads_to.end(), [&db_town](const auto& road)
+            {
+                return road.town->id == db_town.second.id;
+            }));
+        }
+
+        //once each road for this town has been processed, we can just clear them all
+        //and move onto the next town
+        db_town.second.roads_to.clear();
+        db_town.second.processed = false;
+    }
+
+    roads_.clear();
+
+    std::vector<std::unordered_set<Town*>> sub_sets{};
+    Distance total_distance{};
+
+    for (const auto& [cost, town_pair] : all_roads)
+    {
+        //a minimum spanning tree has a maximum of n - 1 edges, where n is the number of nodes
+        if (roads_.size() == database_.size() - 1)
+            continue;
+
+        const auto town1 = town_pair->town1;
+        const auto town2 = town_pair->town2;
+
+        //if both towns are unprocessed, create a new sub_set
+        if (!town1->processed && !town2->processed)
+        {
+            town1->processed = true;
+            town2->processed = true;
+
+            town1->roads_to.insert({ town2, cost });
+            town2->roads_to.insert({ town1, cost });
+
+            const auto concatened_ids = town1->id < town2->id ? std::make_pair(town1->id, town2->id) : std::make_pair(town2->id, town1->id);
+            roads_.push_back(concatened_ids);
+
+            sub_sets.push_back({ town1, town2 });
+
+            total_distance += cost;
+            continue;
+        }
+
+        //if either town is unprocessed, add the unprocessed town into the
+        //processed town's subset
+        if (!town1->processed || !town2->processed)
+        {
+            auto unprocessed_town = !town1->processed ? town1 : town2;
+            auto processed_town = town1->processed ? town1 : town2;
+
+            unprocessed_town->processed = true;
+
+            for (auto& sub_set : sub_sets)
+            {
+                if (sub_set.find(processed_town) != sub_set.end())
+                {
+                    sub_set.insert(unprocessed_town);
+                    break;
+                }
+            }
+
+            unprocessed_town->roads_to.insert({ processed_town, cost });
+            processed_town->roads_to.insert({ unprocessed_town, cost });
+
+            const auto concatened_ids = town1->id < town2->id ? std::make_pair(town1->id, town2->id) : std::make_pair(town2->id, town1->id);
+            roads_.push_back(concatened_ids);
+
+            total_distance += cost;
+            continue;
+        }
+
+        //if we got this far, both towns are processed
+        
+        std::unordered_set<Town*>* sub_set1{};
+        std::unordered_set<Town*>* sub_set2{};
+
+        //find to which sub_sets both towns belong to
+        for (auto& sub_set : sub_sets)
+        {
+            if (!sub_set1)
+                if (sub_set.find(town1) != sub_set.end())
+                    sub_set1 = &sub_set;
+
+            if (!sub_set2)
+                if (sub_set.find(town2) != sub_set.end())
+                    sub_set2 = &sub_set;
+
+            if (sub_set1 && sub_set2)
+                break;
+        }
+
+        //if if both towns are already in the same subset, dont do anything
+        if (sub_set1 == sub_set2)
+            continue;
+
+        //merge the smaller sub set into the larger one to make the worse case less severe
+        if (sub_set1->size() > sub_set2->size())
+            sub_set1->merge(*sub_set2);
+        else
+            sub_set2->merge(*sub_set1);
+
+        town1->roads_to.insert({ town2, cost });
+        town2->roads_to.insert({ town1, cost });
+
+        const auto concatened_ids = town1->id < town2->id ? std::make_pair(town1->id, town2->id) : std::make_pair(town2->id, town1->id);
+        roads_.push_back(concatened_ids);
+        total_distance += cost;
+    }
+
+    //finally deallocate the connected_town pairs
+    for (const auto& [cost, connected_towns] : all_roads)
+        delete connected_towns;
+    
+    return total_distance;
 }
 
 size_t Datastructures::recursive_vassal_path(const Town* town, std::vector<TownID>& current_path, std::vector<TownID>& longest_path)
