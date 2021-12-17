@@ -318,46 +318,107 @@ public:
 
     // Phase 2 operations
 
-    // Estimate of performance:
+    // Estimate of performance: O(n*k), Omega(n) where where n is the number is the number of towns and k is the number of roads in the database
     // Short rationale for estimate:
+    // For loop through each town and clear each town's roads.
+    // Clearing is linear and in the worst case each town has a road to every other town.
+    // In the best case there are no roads and we only loop through each town.
     void clear_roads();
 
-    // Estimate of performance:
+    // Estimate of performance: Theta(1)
     // Short rationale for estimate:
+    // All the work is already done in add_road, only need to return 
     std::vector<std::pair<TownID, TownID>> all_roads();
 
-    // Estimate of performance:
+    // Estimate of performance: O(n), Omega(1), where n is the number is the number of towns in the database
     // Short rationale for estimate:
+    // The documentation states that finding from an
+    // unordered map is linear in the worst case, but in the average case constant.
+    // std::find_if needs to check each road in the worst case, and in the best case only one road.
+    // Also, even in the worst case, a single town can't have more roads than there are total towns.
+    // The documentation states that inserting to a unordered_set is linear in the worst case,
+    // but in the average case constant.
+    // Pushing back to a vector is constant.
     bool add_road(TownID town1_id, TownID town2_id);
 
-    // Estimate of performance:
+    // Estimate of performance: O(n), where n is the number is the number of towns in the database
     // Short rationale for estimate:
+    // The documentation states that finding from an
+    // unordered map is linear in the worst case, but in the average case constant.
+    // std::transform goes through each road the town has, and even in the worst case a single town can't
+    // have more roads than there are total towns.
     std::vector<TownID> get_roads_from(TownID id);
 
-    // Estimate of performance:
+    // Estimate of performance: O(n+k), where where n is the number is the number of towns and k is the number of roads in the database
     // Short rationale for estimate:
+    // See the performance estimate for least_towns_route().
     std::vector<TownID> any_route(TownID fromid, TownID toid);
 
     // Non-compulsory phase 2 operations
 
-    // Estimate of performance:
+    // Estimate of performance: O(max(n,k)), where n is the number is the number of towns and k is the number of roads in the database
     // Short rationale for estimate:
+    // The documentation states that finding from an
+    // unordered map is linear in the worst case, but in the average case constant.
+    // std::find_if goes though a town's roads, in the worst case it needs to go through all of them.
+    // and even in the worst case a single town can't have more roads than there are total towns or roads.
+    // Vector erases may need to move elements. In the worst case all of the elements, and in the best case none.
+    // But if the vector doesn't need to move any elements, find_if needed to go to the very last element, so this is
+    // still linear.
     bool remove_road(TownID town1_id, TownID town2_id);
 
-    // Estimate of performance:
+    // Estimate of performance: O(n+k), where where n is the number is the number of towns and k is the number of roads in the database
     // Short rationale for estimate:
+    // The documentation states that finding from an
+    // unordered map is linear in the worst case, but in the average case constant.
+    // For the bfs algorithm:
+    // Inside the while loop, in the worst case we need to process every single town.
+    // Inside the while loop popping from the deque is constant, according to the documentation,
+    // and inside the for loop in the worst case we need to process every single road of every single town.
+    // And pushing back to the deque is constant, according to the documentation.
     std::vector<TownID> least_towns_route(TownID fromid, TownID toid);
 
-    // Estimate of performance:
+    // Estimate of performance: O(n+k), where where n is the number is the number of towns and k is the number of roads in the database
     // Short rationale for estimate:
+    // The documentation states that finding from an
+    // unordered map is linear in the worst case, but in the average case constant.
+    // For the dfs algorithm:
+    // Inside the while loop, in the worst case we need to process every single town.
+    // Inside the while loop popping from the stack is constant, according to the documentation,
+    // and inside the for loop in the worst case we need to process every single road of every single town.
+    // And pushing back to the stack is constant, according to the documentation.
     std::vector<TownID> road_cycle_route(TownID startid);
 
-    // Estimate of performance:
+    // Estimate of performance: O((n+k)log(n)), where where n is the number is the number of towns and k is the number of roads in the database
     // Short rationale for estimate:
+    // The documentation states that finding from an
+    // unordered map is linear in the worst case, but in the average case constant.
+    // For the A* algorithm:
+    // Inside the while loop, in the worst case we need to process every single town.
+    // Inside the while loop .top() and .pop() on the priority queue are constant, according to the documentation,
+    // and inside the for loop in the worst case we need to process every single road of every single town.
+    // And pushing to the priority queue is performs log(n) amount of comparisons, according to the documentation.
     std::vector<TownID> shortest_route(TownID fromid, TownID toid);
 
-    // Estimate of performance:
+    // Estimate of performance: O(n*max(n,k)*n), Omega(max(n,k)), where where n is the number is the number of towns and k is the number of roads in the database
     // Short rationale for estimate:
+    // When preparing the all_roads container, we need to loop through each town's each road
+    // and inserting to the all_roads set is logarithmic in size. Erasing from town's roads_to vector is linear in the
+    // worst case, and in the worst case the town is connected to all other towns. Linear is worse than logarithmic, so we get n*k*n.
+    // However, in practise it's pretty much impossible to get such bad performance, the loop gets better all the time as we process more data
+    // and the data that would give n*k*n in the beginning would have to be very specially constructed, if such data is even possible.
+    // In the best case there are no roads, or the data is constructed so, that we find everything on first try and erase from the
+    // vector's end. Then the finds and erases are constant.
+    // For the Kruskal algorithm:
+    // In the worst case we loop through each road in the database .
+    // Inside the loop we perform insert() or find() operations, which are linear in
+    // the worst case, and constant in the best, or average case.
+    // Sometimes these operations are performed under a loop of sub_sets
+    // and in the worst case we would have to loop through each sub_set.
+    // This gets us up to n^3 with data that would be very specifically crafted against this algorithm.
+    // In the best case, the towns are processed in such an order that code execution never reaches the sub_sets or
+    // the merge operations, and the insert and find() operations are constant.
+    // Then we get Omega(k) for the Kurskal algorithm.
     Distance trim_road_network();
 
 private:
@@ -380,8 +441,11 @@ private:
     // dfs recursive algorithm to calculate the net tax for a given town
     static int recursive_net_tax(const Town* town);
 
+    // helper function for graph algorithms to construct the path that was traversed
+    [[nodiscard]] static std::vector<TownID> construct_town_path(const Town* last_town);
+
     // helper function for A* algorithm
-    static void relax_a(Town* town, const Road* road, const Town* destination);
+    static void relax_a(Town* town, const Road* road);
 };
 
 #endif // DATASTRUCTURES_HH

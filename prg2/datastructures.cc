@@ -332,7 +332,7 @@ std::vector<TownID> Datastructures::towns_nearest(Coord coord)
 
     //transform the database to a vector of TownDistance pointers
     //pre calculates the distance from the desired point for each town
-    std::transform(database_.begin(), database_.end(), std::back_inserter(towns_distance), [this, coord](const auto& town)
+    std::transform(database_.begin(), database_.end(), std::back_inserter(towns_distance), [coord](const auto& town)
     {
         return new TownDistance{ town.second.id, get_distance_from_coord(town.second.coord, coord) };
     });
@@ -503,7 +503,7 @@ bool Datastructures::remove_road(TownID town1_id, TownID town2_id)
         return road.town->id == town2_id;
     });
 
-    //if the road doesnt exist in town 1
+    //if the road doesn't exist in town 1
     if (town1_road == town1_roads.end())
         return false;
 
@@ -565,23 +565,8 @@ std::vector<TownID> Datastructures::least_towns_route(TownID fromid, TownID toid
             //the destination town, we're done
             if (road.town == destination)
             {
-                std::vector route{ destination->id };
-                auto step = town;
-
-                //construct the route we came from by
-                //going backwards until cant go back anymore
-                for(;;)
-                {
-                    if (!step->prev_town)
-                        break;
-                    route.push_back(step->id);
-                    step = step->prev_town;
-                }
-
-                route.push_back(step->id);
-                //flip the route from end->start to start->end
-                std::reverse(route.begin(), route.end());
-                return route;
+                destination->prev_town = town;
+                return construct_town_path(destination);
             }
 
             road.town->processed = true;
@@ -634,24 +619,9 @@ std::vector<TownID> Datastructures::road_cycle_route(TownID startid)
             //we came from, we're done
             else if (road.town != town->prev_town)
             {
-                std::vector route{ road.town->id };
-                auto& step = town;
-
-                //construct the route we came from by
-                //going backwards until cant go back anymore
-                for (;;)
-                {
-                    if (!step->prev_town)
-                        break;
-                    route.push_back(step->id);
-                    step = step->prev_town;
-                }
-
-                route.push_back(step->id);
-
-                //flip the route from end->start to start->end
-                std::reverse(route.begin(), route.end());
-                return route;
+                auto path = construct_town_path(town);
+                path.push_back(road.town->id);
+                return path;
             }
         }
     }
@@ -703,32 +673,13 @@ std::vector<TownID> Datastructures::shortest_route(TownID fromid, TownID toid)
         //if the currently processed town is
         //the destination town, we're done
         if (town == destination) 
-        {
-            std::vector route{ town->id };
-            auto& step = town->prev_town;
+            return construct_town_path(town);
 
-            //construct the route we came from by
-            //going backwards until cant go back anymore
-            for (;;)
-            {
-                if (!step->prev_town)
-                    break;
-                route.push_back(step->id);
-                step = step->prev_town;
-            }
-
-            route.push_back(step->id);
-
-            //flip the route from end->start to start->end
-            std::reverse(route.begin(), route.end());
-            return route;
-        }
-
-        for(auto& road : town->roads_to)
+        for (auto& road : town->roads_to)
         {
             //set the distance & distance estimate for
             //the town connected by this road
-            relax_a(town, &road, destination);
+            relax_a(town, &road);
             if (!road.town->processed)
             {
                 road.town->processed = true;
@@ -787,7 +738,7 @@ Distance Datastructures::trim_road_network()
     {
         //a minimum spanning tree has a maximum of n - 1 edges, where n is the number of nodes
         if (roads_.size() == database_.size() - 1)
-            continue;
+            break;
 
         const auto town1 = town_pair->town1;
         const auto town2 = town_pair->town2;
@@ -801,8 +752,8 @@ Distance Datastructures::trim_road_network()
             town1->roads_to.insert({ town2, cost });
             town2->roads_to.insert({ town1, cost });
 
-            const auto concatened_ids = town1->id < town2->id ? std::make_pair(town1->id, town2->id) : std::make_pair(town2->id, town1->id);
-            roads_.push_back(concatened_ids);
+            const auto concatenated_ids = town1->id < town2->id ? std::make_pair(town1->id, town2->id) : std::make_pair(town2->id, town1->id);
+            roads_.push_back(concatenated_ids);
 
             sub_sets.push_back({ town1, town2 });
 
@@ -831,8 +782,8 @@ Distance Datastructures::trim_road_network()
             unprocessed_town->roads_to.insert({ processed_town, cost });
             processed_town->roads_to.insert({ unprocessed_town, cost });
 
-            const auto concatened_ids = town1->id < town2->id ? std::make_pair(town1->id, town2->id) : std::make_pair(town2->id, town1->id);
-            roads_.push_back(concatened_ids);
+            const auto concatenated_ids = town1->id < town2->id ? std::make_pair(town1->id, town2->id) : std::make_pair(town2->id, town1->id);
+            roads_.push_back(concatenated_ids);
 
             total_distance += cost;
             continue;
@@ -862,6 +813,11 @@ Distance Datastructures::trim_road_network()
         if (sub_set1 == sub_set2)
             continue;
 
+        //guarantee that we don't use unset pointers, even though it shouldn't 
+        //be possible the for above loop to not find the pointers we need
+        if (!sub_set1 || !sub_set2)
+            continue;
+
         //merge the smaller sub set into the larger one to make the worse case less severe
         if (sub_set1->size() > sub_set2->size())
             sub_set1->merge(*sub_set2);
@@ -871,8 +827,8 @@ Distance Datastructures::trim_road_network()
         town1->roads_to.insert({ town2, cost });
         town2->roads_to.insert({ town1, cost });
 
-        const auto concatened_ids = town1->id < town2->id ? std::make_pair(town1->id, town2->id) : std::make_pair(town2->id, town1->id);
-        roads_.push_back(concatened_ids);
+        const auto concatenated_ids = town1->id < town2->id ? std::make_pair(town1->id, town2->id) : std::make_pair(town2->id, town1->id);
+        roads_.push_back(concatenated_ids);
         total_distance += cost;
     }
 
@@ -950,7 +906,28 @@ int Datastructures::recursive_net_tax(const Town* town)
     return tax_earnings + town->tax;
 }
 
-void Datastructures::relax_a(Town* town, const Road* road, const Town* destination)
+std::vector<TownID> Datastructures::construct_town_path(const Town* last_town)
+{
+    std::vector route{ last_town->id };
+    auto step = last_town->prev_town;
+
+    //construct the route we came from by
+    //going backwards until cant go back anymore
+    for (;;)
+    {
+        if (!step->prev_town)
+            break;
+        route.push_back(step->id);
+        step = step->prev_town;
+    }
+
+    route.push_back(step->id);
+    //flip the route from end->start to start->end
+    std::reverse(route.begin(), route.end());
+    return route;
+}
+
+void Datastructures::relax_a(Town* town, const Road* road)
 {
     const auto cost = get_distance_from_coord(town->coord, road->town->coord);
     if (road->town->distance > town->distance + cost)
