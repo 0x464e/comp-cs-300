@@ -38,7 +38,7 @@ Qt creator is Qt's own IDE.
 ### Build with Visual Studio
 This is doable as well, but you still need to install Qt, of course.
 * Clone this repository  
-`git clone https://github.com/0x464e/pairs_gui`
+`git clone https://github.com/0x464e/comp-cs-300`
 * Install Qt from https://www.qt.io/
 * Install Qt Visual Studio Tools from the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=TheQtCompany.QtVisualStudioTools-19123) and follow their setup instructions
 * Launch Visual Studio and open the `.pro` in this repository file by choosing  
@@ -62,8 +62,7 @@ But still, Qt of course needs to be installed
     qmake -makefile
     make
     ```
-* Run the resulting binary  
-`./pairs_gui`
+* Run the resulting binary
 
 ### Building only a commandline version
 You could ignore all the Qt stuff and not have a gui, and just use this as a good old commandline app.  
